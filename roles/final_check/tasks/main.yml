@@ -1,0 +1,12 @@
+
+---
+
+- name: 'Check weather a reboot is required after package installs and updates'
+  stat:
+      path: '/var/run/reboot-required'
+  register: 'reboot_status'
+
+- name: 'Rebooting...'
+  reboot:
+  when: 'reboot_status.stat.exists'
+

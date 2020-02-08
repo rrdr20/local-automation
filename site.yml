@@ -1,0 +1,30 @@
+
+---
+
+- name: 'Common tasks for cluster nodes'
+  hosts: 'all'
+  become: 'yes'
+  gather_facts: 'true'
+
+  tasks:
+      - import_role:
+          name: 'common_tools'
+
+- name: 'Install Kubernetes'
+  hosts: 'all'
+  become: 'yes'
+  gather_facts: 'false'
+
+  tasks:
+      - import_role:
+          name: 'kubernetes_install'
+
+- name: 'Final checks for all hosts'
+  hosts: 'all'
+  become: 'yes'
+  gather_facts: 'false'
+
+  tasks:
+      - import_role:
+          name: 'final_check'
+

@@ -1,0 +1,117 @@
+
+---
+
+- name: 'Add key for Docker repository'
+  apt_key:
+      url: 'https://download.docker.com/linux/ubuntu/gpg'
+      state: 'present'
+
+- name: 'Add key for Kubernetes repository'
+  apt_key:
+      url: 'https://packages.cloud.google.com/apt/doc/apt-key.gpg'
+      state: 'present'
+
+- name: 'Add Docker repository to APT lists'
+  apt_repository:
+      repo: 'deb [arch=amd64] https://download.docker.com/linux/ubuntu disco stable'
+      filename: 'docker-ce'
+      state: 'present'
+  register: 'docker_repo'
+
+- name: 'Add Kubernetes repository to APT lists'
+  apt_repository:
+      repo: 'deb https://apt.kubernetes.io/ kubernetes-xenial main'
+      filename: 'kubernetes'
+      state: 'present'
+  register: 'kubernetes_repo'
+
+- name: 'Update APT cache before adding new packages' 
+  apt:
+      update_cache: 'yes'
+  when: 'docker_repo.changed or
+         kubernetes_repo.changed'
+
+- name: 'Update alternatives for IP Tables (point to legacy - no NF calls)'
+  alternatives:
+      name: 'iptables'
+      path: '/usr/sbin/iptables-legacy'
+
+- name: 'Update alternatives for IP6 Tables (point to legacy - no NF calls)'
+  alternatives:
+      name: 'ip6tables'
+      path: '/usr/sbin/ip6tables-legacy'
+
+- name: 'Update alternatives for ARP Tables (point to legacy - no NF calls)'
+  alternatives:
+      name: 'arptables'
+      path: '/usr/sbin/arptables-legacy'
+
+- name: 'Update alternatives for EB Tables (point to legacy - no NF calls)'
+  alternatives:
+      name: 'ebtables'
+      path: '/usr/sbin/ebtables-legacy'
+
+- name: 'Install Docker and Kubernetes packages'
+  apt:
+      name:
+          - 'docker-ce'
+          - 'docker-ce-cli'
+          - 'containerd.io'
+          - 'kubeadm'
+          - 'kubelet'
+          - 'kubectl'
+      state: 'present'
+
+- name: 'Mark Kubernetes packages as hold'
+  dpkg_selections:
+      name: '{{ item }}'
+      selection: hold
+  loop:
+      - 'kubeadm'
+      - 'kubelet'
+      - 'kubectl' 
+
+- name: 'Create system directory for docker logging'
+  file:
+      path: '/etc/systemd/system/docker.service.d/'
+      owner: 'root'
+      group: 'root'
+      mode: '0755'
+      state: 'directory'
+
+- name: 'Create docker configuration file'
+  copy:
+      dest: '/etc/docker/daemon.json'
+      owner: 'root'
+      group: 'root'
+      mode: '0644'
+      content: |
+          {
+              "exec-opts": ["native.cgroupdriver=systemd"],
+              "log-driver": "json-file",
+              "log-opts": {
+                  "max-size": "100m"
+              },
+              "storage-driver": "overlay2"
+          }
+  register: 'copy_status'
+
+- name: 'Restart Docker service'
+  systemd:
+      daemon_reload: 'yes'
+      name: 'docker'
+      state: 'restarted'
+  when: 'copy_status.changed'
+
+- name: 'Remove swap line from fstab'
+  lineinfile:
+      path: '/etc/fstab'
+      regexp: '\/swap'
+      state: 'absent'
+  register: 'swap_file'
+
+- name: 'Disable swap'
+  shell:
+      cmd: 'swapoff -a'
+  when: 'swap_file.changed'
+

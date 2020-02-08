@@ -1,0 +1,10 @@
+[masters]
+k8s-srv01
+k8s-srv02
+k8s-srv03
+
+[nodes]
+css-srv04
+css-srv05
+css-srv06
+
